@@ -9,6 +9,10 @@
 #include <vector>
 #include <string>
 #include <sstream>
+#include <cmath>
+
+#include <boost/lexical_cast.hpp>
+#include <boost/algorithm/string.hpp>
 
 namespace xgboost {
 namespace common {
@@ -33,6 +37,16 @@ inline std::string ToString(const T& data) {
   std::ostringstream os;
   os << data;
   return os.str();
+}
+
+template<typename T>
+inline float string2float(const T& data) {
+  std::string s = ToString(data);
+  boost::trim(s);
+  if (s == "") {
+    return NAN;
+  }
+  return boost::lexical_cast<float>(s);
 }
 
 }  // namespace common

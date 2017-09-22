@@ -11,12 +11,16 @@
 #include <string>
 #include <cstring>
 #include <memory>
+#include <boost/tokenizer.hpp>
+#include <fstream>
+#include <iostream>
 
 #include "./c_api_error.h"
 #include "../data/simple_csr_source.h"
 #include "../common/math.h"
 #include "../common/io.h"
 #include "../common/group_data.h"
+#include "../common/common.h"
 
 namespace xgboost {
 // booster wrapper for backward compatible reason.
@@ -340,6 +344,84 @@ XGB_DLL int XGDMatrixCreateFromCSC(const xgboost::bst_ulong* col_ptr,
   }
   return XGDMatrixCreateFromCSCEx(&col_ptr_[0], indices, data,
     static_cast<size_t>(nindptr), static_cast<size_t>(nelem), 0, out);
+}
+
+XGB_DLL int XGDMatrixCreateFromCSV(const char *fname,
+                           const char *feature_list_str,
+                           int silent,
+                           bst_float missing,
+                           DMatrixHandle *out
+                           ) {
+  typedef boost::tokenizer<boost::escaped_list_separator<char>> Tokenizer;
+  API_BEGIN();
+  std::unique_ptr<data::SimpleCSRSource> source(new data::SimpleCSRSource());
+  data::SimpleCSRSource& mat = *source;
+  bool nan_missing = common::CheckNAN(missing);
+
+  const std::string csv_file_name(fname);
+  std::ifstream ifs(csv_file_name);
+  std::string header_str;
+  std::getline(ifs, header_str);
+  Tokenizer headers(header_str);
+  std::map<std::string, int> feature_maps;
+  xgboost::bst_ulong index = 0;
+  for (const auto &feature_name : headers) {
+    feature_maps.insert({feature_name, index++});
+  }
+  std::string feature_list_s(feature_list_str);
+  Tokenizer feature_names(feature_list_s);
+  std::vector<int> position_of_feature(feature_maps.size(), -1);
+  index = 0;
+  for (const auto &feature_name : feature_names) {
+    position_of_feature[feature_maps[feature_name]] = index++;
+  }
+  xgboost::bst_ulong feature_size = index;
+  mat.info.num_col = feature_size;
+
+  std::string features_str;
+  std::vector<bst_float> feature_vector(feature_size);
+
+  xgboost::bst_ulong i = 0;
+  while (std::getline(ifs, features_str)) {
+    Tokenizer features(features_str);
+    index = 0;
+    std::fill(feature_vector.begin(), feature_vector.end(), NAN);
+    for (const auto &feature : features) {
+      int position = position_of_feature[index++];
+      // std::cout << "positon:" << position << std::endl;
+      if (position != -1) {
+        // std::cout << feature << std::endl;
+        bst_float value = common::string2float(feature);
+        if (common::CheckNAN(value)) {
+        } else {
+          if (nan_missing || value != missing) {
+            feature_vector[position] = value;
+          }
+        }
+      }
+    }
+
+    xgboost::bst_ulong matj = 0;
+    for (xgboost::bst_ulong j = 0; j < feature_vector.size(); ++j) {
+      if (!common::CheckNAN(feature_vector[j])) {
+        mat.row_data_.push_back(RowBatch::Entry(j, feature_vector[j]));
+        // std::cout << feature_vector[j];
+        ++matj;
+      }
+    }
+
+    mat.row_ptr_.push_back(mat.row_ptr_[i] + matj);
+    ++i;
+  }
+  mat.info.num_row = i;
+
+  mat.row_ptr_.shrink_to_fit();
+  mat.row_data_.shrink_to_fit();
+
+
+  mat.info.num_nonzero = mat.row_data_.size();
+  *out  = new std::shared_ptr<DMatrix>(DMatrix::Create(std::move(source)));
+  API_END();
 }
 
 XGB_DLL int XGDMatrixCreateFromMat(const bst_float* data,

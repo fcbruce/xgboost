@@ -231,7 +231,7 @@ class DMatrix(object):
     def __init__(self, data, label=None, missing=None,
                  weight=None, silent=False,
                  feature_names=None, feature_types=None,
-                 nthread=None):
+                 nthread=None, csv=False):
         """
         Data matrix used in XGBoost.
 
@@ -267,9 +267,18 @@ class DMatrix(object):
 
         if isinstance(data, STRING_TYPES):
             self.handle = ctypes.c_void_p()
-            _check_call(_LIB.XGDMatrixCreateFromFile(c_str(data),
-                                                     ctypes.c_int(silent),
-                                                     ctypes.byref(self.handle)))
+            if csv:
+                feature_names_str = ','.join(feature_names)
+                _check_call(_LIB.XGDMatrixCreateFromCSV(c_str(data),
+                                                        c_str(feature_names_str),
+                                                        ctypes.c_int(silent),
+                                                        ctypes.c_float(missing),
+                                                        ctypes.byref(self.handle)))
+                feature_names=None
+            else:
+                _check_call(_LIB.XGDMatrixCreateFromFile(c_str(data),
+                                                         ctypes.c_int(silent),
+                                                         ctypes.byref(self.handle)))
         elif isinstance(data, scipy.sparse.csr_matrix):
             self._init_from_csr(data)
         elif isinstance(data, scipy.sparse.csc_matrix):
