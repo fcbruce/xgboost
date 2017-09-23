@@ -391,7 +391,7 @@ XGB_DLL int XGDMatrixCreateFromCSV(const char *fname,
       // std::cout << "positon:" << position << std::endl;
       if (position != -1) {
         // std::cout << feature << std::endl;
-        bst_float value = common::string2float(feature);
+        bst_float value = common::string2float(feature.c_str());
         if (common::CheckNAN(value)) {
         } else {
           if (nan_missing || value != missing) {

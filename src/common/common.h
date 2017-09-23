@@ -39,14 +39,13 @@ inline std::string ToString(const T& data) {
   return os.str();
 }
 
-template<typename T>
-inline float string2float(const T& data) {
-  std::string s = ToString(data);
-  boost::trim(s);
-  if (s == "") {
+inline float string2float(const char *s) {
+  char *p_end = nullptr;
+  float value = strtof(s, &p_end);
+  if (p_end == s) {
     return NAN;
   }
-  return boost::lexical_cast<float>(s);
+  return value;
 }
 
 }  // namespace common
